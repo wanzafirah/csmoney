@@ -10,6 +10,15 @@ DATA_FILE = "transactions.csv"
 INCOME_CATEGORIES = ["Salary", "Freelance", "Investment", "Gift", "Refund", "Other Income"]
 EXPENSE_CATEGORIES = ["Food & Dining", "Groceries", "Transport", "Housing", "Utilities", "Entertainment", "Healthcare", "Shopping", "Education", "Travel", "Other Expense"]
 
+PASTEL_INCOME = "#a8e6cf"
+PASTEL_EXPENSE = "#ffb3ba"
+PASTEL_PRIMARY = "#c7ceea"
+PASTEL_CATEGORIES = [
+    "#ffb3ba", "#ffdfba", "#ffffba", "#baffc9", "#bae1ff",
+    "#e6baff", "#ffc4f2", "#b5ead7", "#ffdac1", "#c7ceea",
+    "#a8e6cf", "#fcc2d7",
+]
+
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -38,6 +47,25 @@ def format_currency(value):
 
 
 st.set_page_config(page_title="Money Tracker", page_icon="💰", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    .stApp { background-color: #fdf6ec; }
+    section[data-testid="stSidebar"] { background-color: #f3e9d2; }
+    .stMetric { background-color: #fff9f0; padding: 12px; border-radius: 14px; border: 1px solid #efe1c8; }
+    div[data-testid="stMetricValue"] { color: #6b5b73; }
+    .stButton > button { background-color: #c7ceea; color: #4a4458; border: none; border-radius: 10px; }
+    .stButton > button:hover { background-color: #b8c2e6; }
+    .stDownloadButton > button { background-color: #a8e6cf; color: #2f4f4a; border: none; border-radius: 10px; }
+    .stDownloadButton > button:hover { background-color: #95dcc0; }
+    .stForm { background-color: #fff9f0; padding: 16px; border-radius: 14px; border: 1px solid #efe1c8; }
+    h1, h2, h3, h4 { color: #6b5b73; }
+    .st-cx, .st-b3, .st-cr, .st-cq { background-color: #fff9f0; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.title("💰 Money Tracker")
 st.caption("Track your income and expenses with ease")
@@ -88,7 +116,7 @@ if menu == "Dashboard":
         chart = alt.Chart(pivot.melt("month", var_name="type", value_name="amount")).mark_bar().encode(
             x=alt.X("month:T", title="Month"),
             y=alt.Y("amount:Q", title="Amount ($)"),
-            color=alt.Color("type:N", scale=alt.Scale(domain=["Income", "Expense"], range=["#2ecc71", "#e74c3c"])),
+            color=alt.Color("type:N", scale=alt.Scale(domain=["Income", "Expense"], range=[PASTEL_INCOME, PASTEL_EXPENSE])),
             tooltip=["month", "type", "amount"],
         ).properties(height=350)
         st.altair_chart(chart, use_container_width=True)
@@ -101,7 +129,8 @@ if menu == "Dashboard":
             by_cat = expenses.groupby("category", as_index=False)["amount"].sum().sort_values("amount", ascending=False)
             cat_chart = alt.Chart(by_cat).mark_arc(innerRadius=60).encode(
                 theta=alt.Theta("amount:Q"),
-                color=alt.Color("category:N", legend=alt.Legend(title="Category")),
+                color=alt.Color("category:N", legend=alt.Legend(title="Category"),
+                                scale=alt.Scale(range=PASTEL_CATEGORIES)),
                 tooltip=["category", "amount"],
             ).properties(height=380)
             st.altair_chart(cat_chart, use_container_width=True)
@@ -209,6 +238,18 @@ elif menu == "Transactions":
 
         filtered = filtered.sort_values("date", ascending=False).reset_index(drop=True)
         st.write(f"Showing **{len(filtered)}** transaction(s)")
+
+        expense_view = filtered[filtered["type"] == "Expense"].copy()
+        dl1, dl2 = st.columns([1, 3])
+        with dl1:
+            st.download_button(
+                "⬇️ Download Expenses (CSV)",
+                data=expense_view[["date", "category", "amount", "description"]].to_csv(index=False),
+                file_name="expenses.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
         display = filtered[["date", "type", "category", "amount", "description"]].copy()
         display["amount"] = display.apply(lambda r: ("+" if r["type"] == "Income" else "-") + format_currency(r["amount"]).lstrip("$"), axis=1)
         st.dataframe(display, use_container_width=True, hide_index=True)
@@ -271,7 +312,7 @@ elif menu == "Reports":
             line = alt.Chart(melted).mark_line(point=True).encode(
                 x=alt.X("date:O", title="Date"),
                 y=alt.Y("amount:Q", title="Amount ($)"),
-                color=alt.Color("type:N", scale=alt.Scale(domain=["Income", "Expense"], range=["#2ecc71", "#e74c3c"])),
+                color=alt.Color("type:N", scale=alt.Scale(domain=["Income", "Expense"], range=[PASTEL_INCOME, PASTEL_EXPENSE])),
                 tooltip=["date", "type", "amount"],
             ).properties(height=320)
             st.altair_chart(line, use_container_width=True)
@@ -282,7 +323,7 @@ elif menu == "Reports":
                 st.write("No expenses in this period.")
             else:
                 exp_cat = exp.groupby("category", as_index=False)["amount"].sum().sort_values("amount", ascending=False)
-                bars = alt.Chart(exp_cat).mark_bar(color="#e74c3c").encode(
+                bars = alt.Chart(exp_cat).mark_bar(color=PASTEL_EXPENSE).encode(
                     x=alt.X("amount:Q", title="Amount ($)"),
                     y=alt.Y("category:N", sort="-x", title=None),
                     tooltip=["category", "amount"],
@@ -295,7 +336,7 @@ elif menu == "Reports":
                 st.write("No income in this period.")
             else:
                 inc_cat = inc.groupby("category", as_index=False)["amount"].sum().sort_values("amount", ascending=False)
-                ibars = alt.Chart(inc_cat).mark_bar(color="#2ecc71").encode(
+                ibars = alt.Chart(inc_cat).mark_bar(color=PASTEL_INCOME).encode(
                     x=alt.X("amount:Q", title="Amount ($)"),
                     y=alt.Y("category:N", sort="-x", title=None),
                     tooltip=["category", "amount"],
